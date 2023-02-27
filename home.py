@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
+import re
 
 root=Tk()
 root.title("E.M.S")
@@ -69,18 +70,31 @@ def save():
         con = connect("ems.db")
         cursor = con.cursor()
         sql = "insert into emp values('%d','%s','%d')"
-        id = int(aw_ent_id.get())
+        id = aw_ent_id.get()
+        if not id.isdigit():
+            showerror("Error", "ID must be a positive integer")
+            return
+        id = int(id)
+        if id < 1:
+            showerror("Error", "ID must be greater than 1")
+            return
         name = aw_ent_name.get()
-        salary = int(aw_ent_salary.get())
-        try:
-            cursor.execute(sql % (id, name, salary))
-            con.commit()
-            showinfo("Success", "Record created")
-        except IntegrityError as e:
-            if "UNIQUE constraint failed" in str(e):
-                showerror("Error", "ID already exists")
+        if (name is None) or (len(name.strip()) == 0) or (len(name.strip()) < 2) or (not re.match("^[A-Za-z ]+$", name)):
+            showerror("Error", "Name must consist of letters and spaces only")
+        else:
+            salary = int(aw_ent_salary.get())
+            if salary < 8000:
+                showerror("Error", "Salary must be positive integer and greater than 8000")
             else:
-                showerror("Error", e)
+                try:
+                    cursor.execute(sql % (id, name, salary))
+                    con.commit()
+                    showinfo("Success", "Record created")
+                except IntegrityError as e:
+                    if "UNIQUE constraint failed" in str(e):
+                        showerror("Error", "ID already exists")
+                    else:
+                        showerror("Error", e)
     except Exception as e:
         con.rollback()
         showerror("Error", e)
@@ -94,29 +108,46 @@ def save():
 
 
 def saveupdate():
-	con=None
-	try:
-		
-		con = connect("ems.db")
-		cursor = con.cursor()
-		sql = "update emp set name=?, salary=? where emp_id=?"
-		id = uw_ent_id.get()
-		name = uw_ent_name.get()
-		salary = uw_ent_salary.get()
-		cursor.execute(sql, (name, salary, id))
-		con.commit()
-		showinfo("Success", "record updated")
+    con = None
+    try:
+        con = connect("ems.db")
+        cursor = con.cursor()
+        select_sql = "select emp_id from emp where emp_id=?"
+        update_sql = "update emp set name=?, salary=? where emp_id=?"
+        id = uw_ent_id.get()
+        name = uw_ent_name.get()
+        salary = uw_ent_salary.get()
+        
+        # validate name
+        if (name is None) or (len(name.strip()) == 0) or (len(name.strip()) < 2) or (not re.match("^[A-Za-z ]+$", name)):
+            showerror("Error", "Name must consist of letters and spaces only")
+        # validate salary
+        elif (not salary.isdigit()) or int(salary) < 8000:
+            showerror("Error", "Salary must be a positive integer and greater than 8000")
+        else:
+            # check if the given ID already exists
+            cursor.execute(select_sql, (id,))
+            row = cursor.fetchone()
+            if row is None:
+                showerror("Error", "ID does not exist")
+            else:
+                cursor.execute(update_sql, (name, salary, id))
+                con.commit()
+                showinfo("Success", "Record updated")
 
-	except Exception as e:
-		con.rollback()
-		showerror("issue",e)
-	finally:
-		if con is not None:
-			con.close()
-		uw_ent_id.delete(0,END)
-		uw_ent_name.delete(0,END)
-		uw_ent_salary.delete(0,END)
-		uw_ent_id.focus()
+    except Exception as e:
+        con.rollback()
+        showerror("Error", e)
+    finally:
+        if con is not None:
+            con.close()
+        uw_ent_id.delete(0, END)
+        uw_ent_name.delete(0, END)
+        uw_ent_salary.delete(0, END)
+        uw_ent_id.focus()
+
+
+
 	
 
 def delete():
@@ -135,7 +166,7 @@ def delete():
             showerror("Error", "id does not exist's")
     except Exception as e:
         con.rollback()
-        showerror("Issue", e)
+        showerror("Issue", "invalid id")
     finally:
         if con is not None:
             con.close()
